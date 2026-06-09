@@ -51,19 +51,19 @@ dependencyResolutionManagement {
 ```kotlin
 dependencies {
     // 1. 引入绝对纯净的核心底座 (已传递 api 依赖 ':androlua')
-    implementation("com.github.kulipai:luahook-core:1.0.0-alpha01")
+    implementation("com.github.kulipai.libluahook:luahook-core:1.0.0-alpha01")
     
     // 2. 引入现代的 LibXposed 编译器 API (compileOnly)
     compileOnly("io.github.libxposed:api:101.0.1")
 
     // 3. (可选) 引入 XML 布局及各类列表适配器支持 (引入 Material & Coil 依赖)
-    implementation("com.github.kulipai:luahook-ext-layout:1.0.0-alpha01")
+    implementation("com.github.kulipai.libluahook:luahook-ext-layout:1.0.0-alpha01")
 
     // 4. (可选) 引入 DexKit 扫描器扩展支持
-    implementation("com.github.kulipai:luahook-ext-dexkit:1.0.0-alpha01")
+    implementation("com.github.kulipai.libluahook:luahook-ext-dexkit:1.0.0-alpha01")
 
     // 5. (可选) 引入 Native Dobby JNI 内存 hook 扩展支持
-    implementation("com.github.kulipai:luahook-ext-native:1.0.0-alpha01")
+    implementation("com.github.kulipai.libluahook:luahook-ext-native:1.0.0-alpha01")
 }
 ```
 

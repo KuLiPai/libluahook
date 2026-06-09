@@ -51,19 +51,19 @@ In your module's `app/build.gradle.kts`:
 ```kotlin
 dependencies {
     // 1. Add the absolute core Lua hook environment (implicitly carries androlua release 1.0.0-alpha01)
-    implementation("com.github.kulipai:luahook-core:1.0.0-alpha01")
+    implementation("com.github.kulipai.libluahook:luahook-core:1.0.0-alpha01")
     
     // 2. Add modern LibXposed compiler API
     compileOnly("io.github.libxposed:api:101.0.1")
 
     // 3. (Optional) Add Layout & Custom Adapter support (pulls Material and Coil)
-    implementation("com.github.kulipai:luahook-ext-layout:1.0.0-alpha01")
+    implementation("com.github.kulipai.libluahook:luahook-ext-layout:1.0.0-alpha01")
 
     // 4. (Optional) Add DexKit scanner support
-    implementation("com.github.kulipai:luahook-ext-dexkit:1.0.0-alpha01")
+    implementation("com.github.kulipai.libluahook:luahook-ext-dexkit:1.0.0-alpha01")
 
     // 5. (Optional) Add Native JNI Dobby inline hook support
-    implementation("com.github.kulipai:luahook-ext-native:1.0.0-alpha01")
+    implementation("com.github.kulipai.libluahook:luahook-ext-native:1.0.0-alpha01")
 }
 ```
 
