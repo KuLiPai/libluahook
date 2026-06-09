@@ -1,0 +1,4 @@
+/home/kulipai/Projects/AndroidStudioProjects/LuaHook-core/luahook-ext-native/.cxx/Debug/723q3549/armeabi-v7a/CMakeFiles/xdl.dir
+/home/kulipai/Projects/AndroidStudioProjects/LuaHook-core/luahook-ext-native/.cxx/Debug/723q3549/armeabi-v7a/CMakeFiles/luahook.dir
+/home/kulipai/Projects/AndroidStudioProjects/LuaHook-core/luahook-ext-native/.cxx/Debug/723q3549/armeabi-v7a/CMakeFiles/edit_cache.dir
+/home/kulipai/Projects/AndroidStudioProjects/LuaHook-core/luahook-ext-native/.cxx/Debug/723q3549/armeabi-v7a/CMakeFiles/rebuild_cache.dir

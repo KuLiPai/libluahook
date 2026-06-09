@@ -1,0 +1,9 @@
+# ninja log v5
+0	32	1779979685410036141	CMakeFiles/xdl.dir/xdl/xdl/src/main/cpp/xdl_iterate.c.o	e29d94c13c7b474d
+1	34	1779979685412036162	CMakeFiles/xdl.dir/xdl/xdl/src/main/cpp/xdl_lzma.c.o	b6e6495fdd8c2756
+1	35	1779979685413606058	CMakeFiles/xdl.dir/xdl/xdl/src/main/cpp/xdl_linker.c.o	2253eebeb1df7081
+1	38	1779979685416036203	CMakeFiles/xdl.dir/xdl/xdl/src/main/cpp/xdl_util.c.o	fcf9017b883006eb
+0	97	1779979685474036808	CMakeFiles/xdl.dir/xdl/xdl/src/main/cpp/xdl.c.o	bfa31e896bba9b88
+97	116	1779979685494037016	/home/kulipai/Projects/AndroidStudioProjects/LuaHook-core/luahook-ext-native/build/intermediates/cxx/Debug/723q3549/obj/armeabi-v7a/libxdl.so	45d72da29a6e7710
+1	556	1779979685933041589	CMakeFiles/luahook.dir/luahook.cpp.o	3072d9f1e60750a2
+556	574	1779979685953041797	/home/kulipai/Projects/AndroidStudioProjects/LuaHook-core/luahook-ext-native/build/intermediates/cxx/Debug/723q3549/obj/armeabi-v7a/libluahook.so	fe49201be006607f

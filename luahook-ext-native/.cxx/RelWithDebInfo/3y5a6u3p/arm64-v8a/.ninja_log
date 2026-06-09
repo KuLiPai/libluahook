@@ -1,0 +1,18 @@
+# ninja log v5
+1	101	1779972862811144351	CMakeFiles/xdl.dir/xdl/xdl/src/main/cpp/xdl_util.c.o	77a5a5c8540ebfc1
+0	102	1779972862811144351	CMakeFiles/xdl.dir/xdl/xdl/src/main/cpp/xdl_lzma.c.o	70b1a59d3ae1873b
+0	107	1779972862817144477	CMakeFiles/xdl.dir/xdl/xdl/src/main/cpp/xdl_iterate.c.o	32e140c827ddb852
+0	110	1779972862819144519	CMakeFiles/xdl.dir/xdl/xdl/src/main/cpp/xdl_linker.c.o	6557d0e8a96615b2
+0	245	1779972862954147357	CMakeFiles/xdl.dir/xdl/xdl/src/main/cpp/xdl.c.o	ec11fab381cab2c9
+245	268	1779972862978147862	/home/kulipai/Projects/AndroidStudioProjects/LuaHook-core/luahook-ext-native/build/intermediates/cxx/RelWithDebInfo/3y5a6u3p/obj/arm64-v8a/libxdl.so	6b7b3876cd37f8db
+1	1114	1779972863823165628	CMakeFiles/luahook.dir/luahook.cpp.o	611f3049f8ce58b9
+1115	1146	1779972863856166322	/home/kulipai/Projects/AndroidStudioProjects/LuaHook-core/luahook-ext-native/build/intermediates/cxx/RelWithDebInfo/3y5a6u3p/obj/arm64-v8a/libluahook.so	98666b8a87db880f
+0	3	0	clean	f1aeb1754464328d
+1	38	1779975181147585499	CMakeFiles/xdl.dir/xdl/xdl/src/main/cpp/xdl_linker.c.o	6557d0e8a96615b2
+1	41	1779975181150585560	CMakeFiles/xdl.dir/xdl/xdl/src/main/cpp/xdl_lzma.c.o	70b1a59d3ae1873b
+1	46	1779975181155585662	CMakeFiles/xdl.dir/xdl/xdl/src/main/cpp/xdl_util.c.o	77a5a5c8540ebfc1
+1	58	1779975181166585885	CMakeFiles/xdl.dir/xdl/xdl/src/main/cpp/xdl_iterate.c.o	32e140c827ddb852
+1	160	1779975181269587980	CMakeFiles/xdl.dir/xdl/xdl/src/main/cpp/xdl.c.o	ec11fab381cab2c9
+160	179	1779975181288588366	/home/kulipai/Projects/AndroidStudioProjects/LuaHook-core/luahook-ext-native/build/intermediates/cxx/RelWithDebInfo/3y5a6u3p/obj/arm64-v8a/libxdl.so	6b7b3876cd37f8db
+1	488	1779975181595594610	CMakeFiles/luahook.dir/luahook.cpp.o	611f3049f8ce58b9
+488	508	1779975181617595058	/home/kulipai/Projects/AndroidStudioProjects/LuaHook-core/luahook-ext-native/build/intermediates/cxx/RelWithDebInfo/3y5a6u3p/obj/arm64-v8a/libluahook.so	98666b8a87db880f

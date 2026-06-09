@@ -1,0 +1,49 @@
+{
+  "buildFiles": [
+    "/home/kulipai/Projects/AndroidStudioProjects/LuaHook-core/luahook-ext-native/src/main/cpp/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/home/kulipai/Android/Sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/home/kulipai/Projects/AndroidStudioProjects/LuaHook-core/luahook-ext-native/.cxx/RelWithDebInfo/3y5a6u3p/arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/home/kulipai/Android/Sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/home/kulipai/Projects/AndroidStudioProjects/LuaHook-core/luahook-ext-native/.cxx/RelWithDebInfo/3y5a6u3p/arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "luahook::@6890427a1f51a3e7e1df": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "luahook",
+      "output": "/home/kulipai/Projects/AndroidStudioProjects/LuaHook-core/luahook-ext-native/build/intermediates/cxx/RelWithDebInfo/3y5a6u3p/obj/arm64-v8a/libluahook.so",
+      "runtimeFiles": [
+        "/home/kulipai/Projects/AndroidStudioProjects/LuaHook-core/luahook-ext-native/build/intermediates/cxx/RelWithDebInfo/3y5a6u3p/obj/arm64-v8a/libxdl.so"
+      ]
+    },
+    "xdl::@6890427a1f51a3e7e1df": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "xdl",
+      "output": "/home/kulipai/Projects/AndroidStudioProjects/LuaHook-core/luahook-ext-native/build/intermediates/cxx/RelWithDebInfo/3y5a6u3p/obj/arm64-v8a/libxdl.so",
+      "runtimeFiles": []
+    }
+  },
+  "toolchains": {
+    "toolchain": {
+      "cCompilerExecutable": "/home/kulipai/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/clang.lld",
+      "cppCompilerExecutable": "/home/kulipai/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++.lld"
+    }
+  },
+  "cFileExtensions": [
+    "c"
+  ],
+  "cppFileExtensions": [
+    "cpp"
+  ]
+}

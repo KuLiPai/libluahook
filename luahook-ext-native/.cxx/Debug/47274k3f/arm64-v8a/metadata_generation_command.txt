@@ -1,0 +1,18 @@
+                        -H/home/kulipai/Projects/AndroidStudioProjects/libluahook/luahook-ext-native/src/main/cpp
+-DCMAKE_SYSTEM_NAME=Android
+-DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+-DCMAKE_SYSTEM_VERSION=28
+-DANDROID_PLATFORM=android-28
+-DANDROID_ABI=arm64-v8a
+-DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
+-DANDROID_NDK=/home/kulipai/Android/Sdk/ndk/28.2.13676358
+-DCMAKE_ANDROID_NDK=/home/kulipai/Android/Sdk/ndk/28.2.13676358
+-DCMAKE_TOOLCHAIN_FILE=/home/kulipai/Android/Sdk/ndk/28.2.13676358/build/cmake/android.toolchain.cmake
+-DCMAKE_MAKE_PROGRAM=/home/kulipai/Android/Sdk/cmake/3.22.1/bin/ninja
+-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=/home/kulipai/Projects/AndroidStudioProjects/libluahook/luahook-ext-native/build/intermediates/cxx/Debug/47274k3f/obj/arm64-v8a
+-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=/home/kulipai/Projects/AndroidStudioProjects/libluahook/luahook-ext-native/build/intermediates/cxx/Debug/47274k3f/obj/arm64-v8a
+-DCMAKE_BUILD_TYPE=Debug
+-B/home/kulipai/Projects/AndroidStudioProjects/libluahook/luahook-ext-native/.cxx/Debug/47274k3f/arm64-v8a
+-GNinja
+                        Build command args: []
+                        Version: 2

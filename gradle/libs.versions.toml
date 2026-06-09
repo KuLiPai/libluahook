@@ -1,0 +1,67 @@
+[versions]
+agp = "9.2.1"
+annotation = "1.10.0"
+libxposedApi = "101.0.1"
+apiVersion = "13.1.5"
+core = "6.0.0"
+dexkit = "2.2.0"
+dialogx = "0.0.50-v2"
+fragmentKtx = "1.8.9"
+kotlin = "2.3.21"
+coreKtx = "1.18.0"
+appcompat = "1.7.1"
+lifecycleViewmodelKtx = "2.10.0"
+material = "1.14.0"
+activity = "1.13.0"
+constraintlayout = "2.2.1"
+nanohttpd = "2.3.2"
+okhttp = "5.3.2"
+preferenceKtx = "1.2.1"
+provider = "13.1.5"
+rippleComponentsAndroid = "a7b66126c6"
+rippleInsets = "1.1.0"
+xphelper = "3.4"
+lint = "32.2.1"
+sora-editor = "0.24.5"
+coil = "3.4.0"
+compileSdk = "37"
+minSdk = "28"
+buildToolsVersion = "35.0.0"
+
+[libraries]
+androidx-annotation = { module = "androidx.annotation:annotation", version.ref = "annotation" }
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-fragment-ktx = { module = "androidx.fragment:fragment-ktx", version.ref = "fragmentKtx" }
+androidx-lifecycle-viewmodel-ktx = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "lifecycleViewmodelKtx" }
+androidx-preference-ktx = { module = "androidx.preference:preference-ktx", version.ref = "preferenceKtx" }
+libxposed-api = { module = "io.github.libxposed:api", version.ref = "libxposedApi" }
+core = { module = "com.github.topjohnwu.libsu:core", version.ref = "core" }
+dexkit = { module = "org.luckypray:dexkit", version.ref = "dexkit" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+androidx-activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }
+androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
+nanohttpd = { module = "io.github.huajiqaq:nanohttpdx", version.ref = "nanohttpd" }
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+provider = { module = "dev.rikka.shizuku:provider", version.ref = "provider" }
+ripple-components-android = { module = "com.github.ConcerroX:ripple-components-android", version.ref = "rippleComponentsAndroid" }
+ripple-insets = { module = "com.github.ConcerroX:ripple-insets", version.ref = "rippleInsets" }
+shizuku-api = { module = "dev.rikka.shizuku:api", version.ref = "apiVersion" }
+xphelper = { module = "com.github.suzhelan:XpHelper", version.ref = "xphelper" }
+lint-api = { module = "com.android.tools.lint:lint-api", version.ref = "lint" }
+lint-checks = { module = "com.android.tools.lint:lint-checks", version.ref = "lint" }
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
+sora-editor-bom = { group = "io.github.rosemoe", name = "editor-bom", version.ref = "sora-editor" }
+sora-editor = { group = "io.github.rosemoe", name = "editor" }
+sora-editor-language-textmate = { group = "io.github.rosemoe", name = "language-textmate" }
+coil = { module = "io.coil-kt.coil3:coil", version.ref = "coil" }
+coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
+coil-gif = { module = "io.coil-kt.coil3:coil-gif", version.ref = "coil" }
+coil-svg = { module = "io.coil-kt.coil3:coil-svg", version.ref = "coil" }
+
+[plugins]
+agp-lib = { id = "com.android.library", version.ref = "agp" }
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

@@ -1,0 +1,32 @@
+# Built artifacts
+**/build/
+*.apk
+*.aar
+# Don't ignore libs/ jar files needed for build
+!libs/**/*.jar
+
+# Gradle files
+.gradle/
+/local.properties
+# Keep gradlew and wrapper for JitPack
+
+
+# Android Studio / IntelliJ IDE files
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.navigation/
+
+# Log files
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Backup and temp files
+*.tmp
+*.bak
+*~
