@@ -1,5 +1,6 @@
 # Built artifacts
 **/build/
+**/.cxx/
 *.apk
 *.aar
 # Don't ignore libs/ jar files needed for build

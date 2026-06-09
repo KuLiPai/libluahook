@@ -1,1 +1,0 @@
-/home/kulipai/Projects/AndroidStudioProjects/libluahook/luahook-ext-native/build/intermediates/cxx/RelWithDebInfo/311og6f1/obj/arm64-v8a
