@@ -71,7 +71,7 @@ dependencies {
 
 ## 🚀 集成与调用指南
 
-在新模块的入口中调用 `LuaHookEngine.init()` 仅需初始化一次，之后即可随时调用 `run()` 批量加载并运行您的 Lua 代码。引擎内部会自动进行入参对象的类型检查与多版本兼容性处理。
+在新模块的入口中调用 `LuaHookEngine.init()` 仅需初始化一次，之后即可随时调用 `loadAndRun()` 一次性加载并运行您的 Lua 代码。引擎内部会自动进行入参对象的类型检查与多版本兼容性处理。
 
 ### 选项 A: 现代 LibXposed 入口 (`XposedModule` / API 101.0.1+)
 ```kotlin
@@ -101,14 +101,37 @@ class MyNewHook : XposedModule() {
             -- 在此编写或加载您的 Lua Hook 业务逻辑！
         """.trimIndent()
         
-        val globals = LuaHookEngine.run(scriptText, "[MY_SCRIPT]")
-        
-        // 3. (可选) 注册您需要的布局扩展、扫描器或 Native C++ Dobby 等注入函数扩展
+        LuaHookEngine.loadAndRun(scriptText, this, "[MY_SCRIPT]")
+    }
+}
+```
+
+如果您需要在脚本运行**之前**注入自定义全局变量或扩展函数，请拆成两步 —— `load()` 只创建运行环境，
+`run()` 才执行脚本：
+
+```kotlin
+    override fun onPackageReady(lpparam: XposedModuleInterface.PackageReadyParam) {
+        super.onPackageReady(lpparam)
+
+        LuaHookEngine.init(
+            xposedModule = this,
+            param = lpparam
+        )
+
+        // 1. 创建运行环境。此时脚本还没有执行
+        val globals = LuaHookEngine.load(this, "[MY_SCRIPT]")
+
+        // 2. 注册扩展 API
         globals.registerLayout()  // 👈 向 Lua 运行期暴露出原生的 loadlayout() 和图片加载适配器支持
         globals.registerDexKit()
         globals.registerNative()
+
+        // 3. 也可以注入自己的全局变量
+        globals["MY_CONFIG"] = "value"
+
+        // 4. 这时候才运行脚本，上面注入的东西脚本都能用上
+        LuaHookEngine.run(globals, scriptText)
     }
-}
 ```
 
 ### 选项 B: 传统 Xposed 入口 (`IXposedHookLoadPackage`)
@@ -137,12 +160,13 @@ class MyLegacyHook : IXposedHookZygoteInit, IXposedHookLoadPackage {
             suparam = suparam
         )
         
-        // 2. 运行您的 Lua 代码
+        // 2. 创建运行环境、注册扩展，然后运行您的 Lua 代码
         val scriptText = "log('Hello from legacy Xposed Lua!')"
-        val globals = LuaHookEngine.run(scriptText, "[LEGACY_SCRIPT]")
-        
-        // 3. 注册布局库支持
+        val globals = LuaHookEngine.load(this, "[LEGACY_SCRIPT]")
+
         globals.registerLayout()
+
+        LuaHookEngine.run(globals, scriptText)
     }
 }
 ```

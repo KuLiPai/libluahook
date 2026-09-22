@@ -101,12 +101,36 @@ class MyNewHook : XposedModule() {
             -- Expose hooks here!
         """.trimIndent()
         
-        val globals = LuaHookEngine.run(scriptText, "[MY_SCRIPT]")
-        
-        // 3. (Optional) Expose your extension APIs to the global Lua script runner
+        val globals = LuaHookEngine.loadAndRun(scriptText, this, "[MY_SCRIPT]")
+    }
+}
+```
+
+If you need to inject custom globals (or extension APIs) *before* the script runs, split it
+into two steps instead — `load()` only builds the environment, `run()` executes the script:
+
+```kotlin
+    override fun onPackageReady(lpparam: XposedModuleInterface.PackageReadyParam) {
+        super.onPackageReady(lpparam)
+
+        LuaHookEngine.init(
+            xposedModule = this,
+            param = lpparam
+        )
+
+        // 1. Build the environment. No script has run yet.
+        val globals = LuaHookEngine.load(this, "[MY_SCRIPT]")
+
+        // 2. Expose extension APIs to the Lua runtime
         globals.registerLayout()  // 👈 Exposes loadlayout() and adapters to your Lua runtime
         globals.registerDexKit()
         globals.registerNative()
+
+        // 3. Inject your own globals too
+        globals["MY_CONFIG"] = "value"
+
+        // 4. Now run the script, with everything above available to it
+        LuaHookEngine.run(globals, scriptText)
     }
 }
 ```
@@ -137,12 +161,13 @@ class MyLegacyHook : IXposedHookZygoteInit, IXposedHookLoadPackage {
             suparam = suparam
         )
         
-        // 2. Run your Lua code
+        // 2. Build the environment, register extensions, then run your Lua code
         val scriptText = "log('Hello from legacy Xposed Lua!')"
-        val globals = LuaHookEngine.run(scriptText, "[LEGACY_SCRIPT]")
-        
-        // 3. Register layout features
+        val globals = LuaHookEngine.load(this, "[LEGACY_SCRIPT]")
+
         globals.registerLayout()
+
+        LuaHookEngine.run(globals, scriptText)
     }
 }
 ```

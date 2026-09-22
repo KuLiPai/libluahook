@@ -69,29 +69,55 @@ object LuaHookEngine {
     }
 
     /**
-     * Run a Lua script in the pre-initialized Xposed hook environment.
-     * 
-     * @param scriptContent The Lua script content to run.
-     * @param scriptName Identifier name of the script for error reports (optional).
-     * @return The generated Lua Globals environment.
+     * Create a Lua environment in the pre-initialized Xposed hook environment,
+     * without running any script yet.
+     *
+     * Use this when you need to inject your own globals (or extension APIs such as
+     * `registerLayout()`, `registerDexKit()`, `registerNative()`) before the script
+     * runs. Hand the returned environment to [run] when you are done.
+     *
+     * @param context An arbitrary object exposed to Lua as `this` (optional).
+     * @param scriptName Name of the script, used to prefix its log output and error
+     *   reports for the whole lifetime of this environment (optional).
+     * @return The generated Lua environment.
      */
     @JvmStatic
     @JvmOverloads
     fun load(
-        scriptContent: String,
         context: Any? = null,
         scriptName: String = "[LUA]"
-
     ): Globals {
         val lp = this.lpParam
-            ?: throw IllegalStateException("LuaHookEngine must be initialized by calling init() before run()")
+            ?: throw IllegalStateException("LuaHookEngine must be initialized by calling init() before load()")
         val sp = this.startupParam
-            ?: throw IllegalStateException("LuaHookEngine must be initialized by calling init() before run()")
+            ?: throw IllegalStateException("LuaHookEngine must be initialized by calling init() before load()")
 
-        val globals = createGlobals(context, lp, sp, scriptName)
+        return createGlobals(context, lp, sp, scriptName)
+    }
 
+    /**
+     * Run a Lua script in a previously created environment.
+     *
+     * The script name comes from the environment itself (see [load]), so it does not
+     * need to be passed again. Any globals injected after [load] are visible to the
+     * script. Repeated calls run each script in the same shared environment.
+     *
+     * @param globals The environment returned by [load].
+     * @param scriptContent The Lua script content to run.
+     * @return The same environment, for chaining.
+     */
+    @JvmStatic
+    fun run(globals: Globals, scriptContent: String): Globals {
+        // [load] always returns a LuaEnv, so this only falls back for environments
+        // built by hand outside the engine.
+        val scriptName = (globals as? LuaEnv)?.scriptName ?: "[LUA]"
         try {
             val chunk: LuaValue = globals.load(scriptContent)
+            if (chunk.isnil()) {
+                throw IllegalStateException(
+                    "Failed to compile script $scriptName: the environment has no Lua compiler"
+                )
+            }
             chunk.call()
         } catch (e: Exception) {
             val err = LuaUtil.simplifyLuaError(e.toString())
@@ -100,6 +126,26 @@ object LuaHookEngine {
 
         return globals
     }
+
+    /**
+     * Create a Lua environment and immediately run a script in it.
+     *
+     * Shortcut for callers that do not need to inject custom globals in between.
+     * For the injectable form, use [load] followed by [run].
+     *
+     * @param scriptContent The Lua script content to run.
+     * @param context An arbitrary object exposed to Lua as `this` (optional).
+     * @param scriptName Name of the script, used to prefix its log output and error
+     *   reports (optional).
+     * @return The generated Lua environment.
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun loadAndRun(
+        scriptContent: String,
+        context: Any? = null,
+        scriptName: String = "[LUA]"
+    ): Globals = run(load(context, scriptName), scriptContent)
 
     private fun createDefaultStartupParam(modulePath: String): IXposedHookZygoteInit.StartupParam {
         val clazz = IXposedHookZygoteInit.StartupParam::class.java

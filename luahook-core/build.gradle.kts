@@ -69,7 +69,7 @@ dependencies {
     api(project(":androlua"))
     
     // Xposed API (compileOnly)
-    compileOnly("io.github.libxposed:api:101.0.1")
+    compileOnly(libs.libxposed.api)
     compileOnly(fileTree(mapOf("dir" to "compileOnly", "include" to listOf("*.jar"))))
     
     // Fallback compileOnly for traditional Xposed API
