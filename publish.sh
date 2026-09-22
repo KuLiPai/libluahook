@@ -99,11 +99,15 @@ fi
 
 if [[ $NEED_COMMIT -eq 1 ]]; then
   [[ -z "$MESSAGE" ]] && MESSAGE="chore(release): $VERSION"
-  # GNU sed first, then BSD sed, so this works on both Linux and macOS.
-  if sed -i "s/^version=.*/version=$VERSION/" gradle.properties 2>/dev/null; then
-    :
+  if [[ $DRY_RUN -eq 1 ]]; then
+    echo "  [dry-run] edit gradle.properties: version=$VERSION"
   else
-    sed -i '' "s/^version=.*/version=$VERSION/" gradle.properties
+    # GNU sed first, then BSD sed, so this works on both Linux and macOS.
+    if sed -i "s/^version=.*/version=$VERSION/" gradle.properties 2>/dev/null; then
+      :
+    else
+      sed -i '' "s/^version=.*/version=$VERSION/" gradle.properties
+    fi
   fi
   run git add gradle.properties
   run git commit -m "$MESSAGE"
