@@ -1,6 +1,7 @@
 package io.github.kulipai.luahook.ext.nativelib
 
 import org.luaj.Globals
+import io.github.kulipai.luahook.hook.api.Il2CppLib
 import io.github.kulipai.luahook.hook.api.NativeLib
 
 /**
@@ -8,5 +9,7 @@ import io.github.kulipai.luahook.hook.api.NativeLib
  * 允许 Lua 脚本在包含此依赖的模块中直接使用原生 C++ 层的内联 Hook、内存读写以及符号解析。
  */
 fun Globals.registerNative() {
-    this["native"] = NativeLib().toLuaTable()
+    val nativeLib = NativeLib()
+    this["native"] = nativeLib.toLuaTable()
+    this["il2cpp"] = Il2CppLib(nativeLib).toLuaTable()
 }

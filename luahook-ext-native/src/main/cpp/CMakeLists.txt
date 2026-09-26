@@ -20,7 +20,8 @@ add_library(dobby_lib STATIC IMPORTED)
 set_target_properties(dobby_lib PROPERTIES IMPORTED_LOCATION
         ${DOBBY_DIR}/${ANDROID_ABI}/libdobby.a)
 
-add_library(luahook SHARED luahook.cpp)
+add_library(luahook SHARED luahook.cpp UnityResolve.hpp)
+target_compile_features(luahook PRIVATE cxx_std_20)
 
 target_include_directories(luahook PRIVATE
         ${DOBBY_DIR}/include
