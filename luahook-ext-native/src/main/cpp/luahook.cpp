@@ -14,6 +14,10 @@
 #include <sys/uio.h>
 #include <unistd.h>
 #include <vector>
+#include <array>
+#include <type_traits>
+
+#include "UnityResolve.hpp"
 
 #define LOG_TAG "LuaHookNative"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
@@ -43,6 +47,469 @@ static int g_current_hook_idx = 0;
 // 线程清理 Key
 static pthread_key_t g_thread_key;
 static pthread_mutex_t g_hook_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+// =============================================================
+//  UnityResolve <-> LuaJ bridge
+// =============================================================
+
+namespace {
+
+enum Il2CppValueKind {
+  IL2CPP_NIL = 0,
+  IL2CPP_BOOLEAN = 1,
+  IL2CPP_INTEGER = 2,
+  IL2CPP_NUMBER = 3,
+  IL2CPP_STRING = 4,
+  IL2CPP_OBJECT = 5,
+};
+
+static std::mutex g_unity_mutex;
+static bool g_unity_initialized = false;
+static void *g_unity_module = nullptr;
+static bool g_unity_uses_xdl = false;
+static UnityResolve::Mode g_unity_mode = UnityResolve::Mode::Il2Cpp;
+
+static void *resolve_unity_symbol(void *module, const char *name) {
+  if (!module || !name) return nullptr;
+  return xdl_sym(module, name, nullptr);
+}
+
+static bool contains_name(const std::string &name, const char *part) {
+  return name.find(part) != std::string::npos;
+}
+
+static bool is_string_type(const std::string &name) {
+  return contains_name(name, "String") || name == "string";
+}
+
+static bool is_bool_type(const std::string &name) {
+  return name == "System.Boolean" || name == "bool" || name == "Boolean";
+}
+
+static bool is_float_type(const std::string &name) {
+  return name == "System.Single" || name == "float" || name == "single";
+}
+
+static bool is_double_type(const std::string &name) {
+  return name == "System.Double" || name == "double";
+}
+
+static bool is_integer_type(const std::string &name) {
+  return contains_name(name, "Int") || contains_name(name, "UInt") ||
+         name == "byte" || name == "sbyte" || name == "short" ||
+         name == "ushort" || name == "long" || name == "ulong" ||
+         name == "char";
+}
+
+static size_t integer_size(const std::string &name) {
+  if (contains_name(name, "Int64") || contains_name(name, "UInt64") ||
+      name == "long" || name == "ulong" || name == "System.IntPtr" ||
+      name == "System.UIntPtr")
+    return sizeof(int64_t);
+  if (contains_name(name, "Int16") || contains_name(name, "UInt16") ||
+      name == "short" || name == "ushort" || name == "char")
+    return sizeof(int16_t);
+  if (contains_name(name, "Int32") || contains_name(name, "UInt32") ||
+      name == "int" || name == "uint")
+    return sizeof(int32_t);
+  return sizeof(int8_t);
+}
+
+static int value_kind_for_type(const std::string &name) {
+  if (is_string_type(name)) return IL2CPP_STRING;
+  if (is_bool_type(name)) return IL2CPP_BOOLEAN;
+  if (is_float_type(name) || is_double_type(name)) return IL2CPP_NUMBER;
+  if (is_integer_type(name) || name == "System.IntPtr" ||
+      name == "System.UIntPtr") return IL2CPP_INTEGER;
+  return IL2CPP_OBJECT;
+}
+
+static bool initialize_unity() {
+  std::lock_guard<std::mutex> lock(g_unity_mutex);
+  if (g_unity_initialized && g_unity_module != nullptr &&
+      !UnityResolve::assembly.empty())
+    return true;
+
+  LOGE("UnityResolve init: searching Unity runtime libraries");
+  const char *modules[] = {"libil2cpp.so", "libmono.so", "libmono-native.so"};
+  for (const char *module_name : modules) {
+    g_unity_module = xdl_open(module_name, XDL_DEFAULT);
+    g_unity_uses_xdl = g_unity_module != nullptr;
+    if (!g_unity_module) g_unity_module = dlopen(module_name, RTLD_NOW | RTLD_NOLOAD);
+    if (!g_unity_module) g_unity_module = dlopen(module_name, RTLD_NOW);
+    if (g_unity_module) {
+      g_unity_mode = (std::string(module_name).find("il2cpp") != std::string::npos)
+                         ? UnityResolve::Mode::Il2Cpp
+                         : UnityResolve::Mode::Mono;
+      LOGE("UnityResolve init: found %s mode=%s", module_name,
+           g_unity_mode == UnityResolve::Mode::Il2Cpp ? "il2cpp" : "mono");
+      break;
+    }
+  }
+  if (g_unity_module) {
+    UnityResolve::SetSymbolResolver(g_unity_uses_xdl ? resolve_unity_symbol : nullptr);
+    UnityResolve::Init(g_unity_module, g_unity_mode);
+    LOGE("UnityResolve init: assemblies=%zu", UnityResolve::assembly.size());
+  } else {
+    LOGE("UnityResolve init: no libil2cpp.so/libmono.so found");
+  }
+  g_unity_initialized = g_unity_module != nullptr &&
+                        !UnityResolve::assembly.empty();
+  return g_unity_initialized;
+}
+
+static bool ensure_unity_initialized() {
+  std::lock_guard<std::mutex> lock(g_unity_mutex);
+  return g_unity_initialized && g_unity_module != nullptr &&
+         !UnityResolve::assembly.empty();
+}
+
+static void refresh_unity_metadata() {
+  std::lock_guard<std::mutex> lock(g_unity_mutex);
+  if (!g_unity_module) return;
+  // Unity may load user assemblies after libil2cpp.so. Re-enumerate without
+  // freeing old handles, because Lua userdata may still reference them.
+  UnityResolve::assembly.clear();
+  UnityResolve::Init(g_unity_module, g_unity_mode);
+}
+
+static UnityResolve::Class *lookup_unity_class(const char *assembly_name,
+                                               const char *namespace_name,
+                                               const char *class_name) {
+  if (!assembly_name || !namespace_name || !class_name) return nullptr;
+  UnityResolve::Assembly *assembly = UnityResolve::Get(assembly_name);
+  std::string alternate(assembly_name);
+  if (!assembly && alternate.size() > 4 &&
+      alternate.substr(alternate.size() - 4) == ".dll") {
+    alternate.resize(alternate.size() - 4);
+    assembly = UnityResolve::Get(alternate);
+  } else if (!assembly) {
+    assembly = UnityResolve::Get(alternate + ".dll");
+  }
+  if (!assembly) return nullptr;
+  auto *klass = assembly->Get(class_name, namespace_name);
+  // An empty namespace is commonly used by Lua callers as "unspecified".
+  if (!klass && namespace_name[0] == '\0')
+    klass = assembly->Get(class_name, "*");
+  return klass;
+}
+
+static UnityResolve::Class *class_from_handle(jlong handle) {
+  return reinterpret_cast<UnityResolve::Class *>(static_cast<uintptr_t>(handle));
+}
+
+static UnityResolve::Class *class_handle_for_object(void *object) {
+  if (!object || g_unity_mode != UnityResolve::Mode::Il2Cpp) return nullptr;
+  void *runtime_class =
+      UnityResolve::Invoke<void *>("il2cpp_object_get_class", object);
+  if (!runtime_class) return nullptr;
+  for (auto *assembly : UnityResolve::assembly) {
+    if (!assembly) continue;
+    for (auto *klass : assembly->classes) {
+      if (klass && klass->address == runtime_class) return klass;
+    }
+  }
+  return nullptr;
+}
+
+static bool field_is_static(UnityResolve::Field *field) {
+  if (!field) return false;
+  if (g_unity_mode == UnityResolve::Mode::Il2Cpp) {
+    const int flags =
+        UnityResolve::Invoke<int>("il2cpp_field_get_flags", field->address);
+    return (flags & 0x10) != 0;
+  }
+  return field->static_field;
+}
+
+static jstring new_utf_string(JNIEnv *env, const std::string &value) {
+  return env->NewStringUTF(value.c_str());
+}
+
+static jobject make_unity_value(JNIEnv *env, int kind, uint64_t bits,
+                                const std::string *text, uintptr_t class_handle) {
+  jclass value_class =
+      env->FindClass("io/github/kulipai/luahook/hook/api/Il2CppNativeValue");
+  if (!value_class) return nullptr;
+  jmethodID ctor = env->GetMethodID(value_class, "<init>",
+                                    "(IJLjava/lang/String;J)V");
+  if (!ctor) {
+    env->DeleteLocalRef(value_class);
+    return nullptr;
+  }
+  jstring string_value = text ? new_utf_string(env, *text) : nullptr;
+  jobject result = env->NewObject(value_class, ctor, static_cast<jint>(kind),
+                                  static_cast<jlong>(bits), string_value,
+                                  static_cast<jlong>(class_handle));
+  if (string_value) env->DeleteLocalRef(string_value);
+  env->DeleteLocalRef(value_class);
+  return result;
+}
+
+static jobject make_nil_value(JNIEnv *env) {
+  return make_unity_value(env, IL2CPP_NIL, 0, nullptr, 0);
+}
+
+static std::string type_name(const UnityResolve::Field *field) {
+  return field && field->type ? field->type->name : std::string();
+}
+
+static std::string type_name(const UnityResolve::Method *method) {
+  return method && method->return_type ? method->return_type->name : std::string();
+}
+
+static jobject read_field_value(JNIEnv *env, UnityResolve::Class *klass,
+                                UnityResolve::Field *field, uintptr_t object) {
+  if (!field) return nullptr;
+  const std::string name = type_name(field);
+  const int kind = value_kind_for_type(name);
+  auto *object_class =
+      class_handle_for_object(reinterpret_cast<void *>(object));
+  const uintptr_t owner = reinterpret_cast<uintptr_t>(object_class ? object_class : klass);
+  if (object == 0 && !field_is_static(field)) return nullptr;
+  if (object != 0 && field_is_static(field)) object = 0;
+
+  if (kind == IL2CPP_STRING || kind == IL2CPP_OBJECT) {
+    void *value = nullptr;
+    if (object == 0) {
+      field->GetStaticValue(&value);
+    } else if (field->offset >= 0) {
+      std::memcpy(&value, reinterpret_cast<void *>(object + field->offset),
+                  sizeof(value));
+    }
+    if (!value) return make_unity_value(env, kind, 0, nullptr, owner);
+    if (kind == IL2CPP_STRING) {
+      auto *string_value =
+          reinterpret_cast<UnityResolve::UnityType::String *>(value);
+      const std::string string_text = string_value->ToString();
+      return make_unity_value(env, IL2CPP_STRING, 0, &string_text, owner);
+    }
+    return make_unity_value(env, IL2CPP_OBJECT,
+                            reinterpret_cast<uintptr_t>(value), nullptr, owner);
+  }
+
+  if (kind == IL2CPP_BOOLEAN) {
+    bool value = false;
+    if (object == 0) field->GetStaticValue(&value);
+    else if (field->offset >= 0)
+      std::memcpy(&value, reinterpret_cast<void *>(object + field->offset),
+                  sizeof(value));
+    return make_unity_value(env, IL2CPP_BOOLEAN, value ? 1 : 0, nullptr, owner);
+  }
+
+  if (kind == IL2CPP_NUMBER) {
+    if (is_float_type(name)) {
+      float value = 0;
+      if (object == 0) field->GetStaticValue(&value);
+      else if (field->offset >= 0)
+        std::memcpy(&value, reinterpret_cast<void *>(object + field->offset),
+                    sizeof(value));
+      const double number = value;
+      return make_unity_value(env, IL2CPP_NUMBER,
+                              *reinterpret_cast<uint64_t const *>(&number), nullptr,
+                              owner);
+    }
+    double value = 0;
+    if (object == 0) field->GetStaticValue(&value);
+    else if (field->offset >= 0)
+      std::memcpy(&value, reinterpret_cast<void *>(object + field->offset),
+                  sizeof(value));
+    return make_unity_value(env, IL2CPP_NUMBER,
+                            *reinterpret_cast<uint64_t *>(&value), nullptr,
+                            owner);
+  }
+
+  uint64_t raw = 0;
+  if (object == 0) field->GetStaticValue(&raw);
+  else if (field->offset >= 0)
+    std::memcpy(&raw, reinterpret_cast<void *>(object + field->offset),
+                integer_size(name));
+  return make_unity_value(env, IL2CPP_INTEGER, raw,
+                          nullptr, owner);
+}
+
+static bool write_field_value(UnityResolve::Field *field, uintptr_t object,
+                              int kind, int64_t bits, const char *text) {
+  if (!field) return false;
+  const std::string name = field->type ? field->type->name : std::string();
+  if (object == 0 && !field_is_static(field)) return false;
+  if (object != 0 && field_is_static(field)) object = 0;
+  if (object != 0 && field->offset < 0) return false;
+
+  const int target_kind = value_kind_for_type(name);
+  if (target_kind == IL2CPP_STRING) {
+    void *value = text ? UnityResolve::UnityType::String::New(text) : nullptr;
+    if (object == 0) field->SetStaticValue(&value);
+    else std::memcpy(reinterpret_cast<void *>(object + field->offset), &value,
+                     sizeof(value));
+    return true;
+  }
+  if (target_kind == IL2CPP_OBJECT) {
+    void *value = reinterpret_cast<void *>(static_cast<uintptr_t>(bits));
+    if (object == 0) field->SetStaticValue(&value);
+    else std::memcpy(reinterpret_cast<void *>(object + field->offset), &value,
+                     sizeof(value));
+    return true;
+  }
+  if (target_kind == IL2CPP_BOOLEAN) {
+    bool value = bits != 0;
+    if (object == 0) field->SetStaticValue(&value);
+    else std::memcpy(reinterpret_cast<void *>(object + field->offset), &value,
+                     sizeof(value));
+    return true;
+  }
+  if (target_kind == IL2CPP_NUMBER && is_float_type(name)) {
+    const double input =
+        kind == IL2CPP_NUMBER ? *reinterpret_cast<double *>(&bits)
+                              : static_cast<double>(bits);
+    float value = static_cast<float>(input);
+    if (object == 0) field->SetStaticValue(&value);
+    else std::memcpy(reinterpret_cast<void *>(object + field->offset), &value,
+                     sizeof(value));
+    return true;
+  }
+  if (target_kind == IL2CPP_NUMBER) {
+    double value = kind == IL2CPP_NUMBER
+                       ? *reinterpret_cast<double *>(&bits)
+                       : static_cast<double>(bits);
+    if (object == 0) field->SetStaticValue(&value);
+    else std::memcpy(reinterpret_cast<void *>(object + field->offset), &value,
+                     sizeof(value));
+    return true;
+  }
+  int64_t value = kind == IL2CPP_NUMBER
+                      ? static_cast<int64_t>(*reinterpret_cast<double *>(&bits))
+                      : bits;
+  if (object == 0) field->SetStaticValue(&value);
+  else
+    std::memcpy(reinterpret_cast<void *>(object + field->offset), &value,
+                integer_size(name));
+  return true;
+}
+
+struct Il2CppArgSlot {
+  std::array<uint8_t, 16> bytes{};
+  void *data() { return bytes.data(); }
+  const void *data() const { return bytes.data(); }
+};
+
+static void store_arg(Il2CppArgSlot &slot, int kind, jlong bits,
+                      const char *text) {
+  if (kind == IL2CPP_STRING) {
+    void *value = text ? UnityResolve::UnityType::String::New(text) : nullptr;
+    std::memcpy(slot.data(), &value, sizeof(value));
+  } else if (kind == IL2CPP_OBJECT) {
+    void *value = reinterpret_cast<void *>(static_cast<uintptr_t>(bits));
+    std::memcpy(slot.data(), &value, sizeof(value));
+  } else if (kind == IL2CPP_BOOLEAN) {
+    bool value = bits != 0;
+    std::memcpy(slot.data(), &value, sizeof(value));
+  } else if (kind == IL2CPP_NUMBER) {
+    double value = *reinterpret_cast<double *>(&bits);
+    std::memcpy(slot.data(), &value, sizeof(value));
+  } else {
+    std::memcpy(slot.data(), &bits, sizeof(bits));
+  }
+}
+
+static void *invoke_with_slots(UnityResolve::Method *method, void *object,
+                               const std::vector<Il2CppArgSlot> &slots,
+                               const std::vector<jint> &kinds) {
+  if (slots.size() != kinds.size() || slots.size() > 16) return nullptr;
+  std::array<void *, 16> arguments{};
+  for (size_t i = 0; i < slots.size(); i++) {
+    arguments[i] = const_cast<void *>(slots[i].data());
+  }
+  if (g_unity_mode == UnityResolve::Mode::Il2Cpp) {
+    return UnityResolve::Invoke<void *>("il2cpp_runtime_invoke", method->address,
+                                        object,
+                                        slots.empty() ? nullptr : arguments.data(),
+                                        nullptr);
+  }
+  return UnityResolve::Invoke<void *>("mono_runtime_invoke", method->address,
+                                      object,
+                                      slots.empty() ? nullptr : arguments.data(),
+                                      nullptr);
+}
+
+static jobject invoke_method_value(JNIEnv *env, UnityResolve::Class *klass,
+                                   uintptr_t object, const char *method_name,
+                                   jintArray kinds_array, jlongArray bits_array,
+                                   jobjectArray texts_array) {
+  if (!klass || !method_name) return nullptr;
+  auto *method = klass->Get<UnityResolve::Method>(method_name);
+  if (!method) return nullptr;
+
+  const jsize count = kinds_array ? env->GetArrayLength(kinds_array) : 0;
+  std::vector<jint> kinds(static_cast<size_t>(count));
+  std::vector<jlong> bits(static_cast<size_t>(count));
+  std::vector<Il2CppArgSlot> slots(static_cast<size_t>(count));
+  if (count > 0) {
+    env->GetIntArrayRegion(kinds_array, 0, count, kinds.data());
+    env->GetLongArrayRegion(bits_array, 0, count, bits.data());
+  }
+  for (jsize i = 0; i < count; i++) {
+    jstring text_value = texts_array
+                             ? static_cast<jstring>(env->GetObjectArrayElement(
+                                   texts_array, i))
+                             : nullptr;
+    const char *text = text_value ? env->GetStringUTFChars(text_value, nullptr)
+                                  : nullptr;
+    store_arg(slots[static_cast<size_t>(i)], kinds[static_cast<size_t>(i)],
+              bits[static_cast<size_t>(i)], text);
+    if (text && text_value) env->ReleaseStringUTFChars(text_value, text);
+    if (text_value) env->DeleteLocalRef(text_value);
+  }
+
+  void *boxed = invoke_with_slots(method, reinterpret_cast<void *>(object), slots,
+                                  kinds);
+  const std::string return_name = type_name(method);
+  const int return_kind = value_kind_for_type(return_name);
+  const uintptr_t owner = reinterpret_cast<uintptr_t>(klass);
+  if (return_name == "System.Void" || return_name == "void") {
+    return make_nil_value(env);
+  }
+  if (!boxed) return make_unity_value(env, return_kind, 0, nullptr, owner);
+  if (return_kind == IL2CPP_STRING) {
+    auto *string_value =
+        reinterpret_cast<UnityResolve::UnityType::String *>(boxed);
+    const std::string value = string_value->ToString();
+    return make_unity_value(env, IL2CPP_STRING, 0, &value, owner);
+  }
+  if (return_kind == IL2CPP_OBJECT) {
+    auto *result_class = class_handle_for_object(boxed);
+    return make_unity_value(env, IL2CPP_OBJECT,
+                            reinterpret_cast<uintptr_t>(boxed), nullptr,
+                            reinterpret_cast<uintptr_t>(result_class ? result_class
+                                                                     : klass));
+  }
+
+  void *unboxed = UnityResolve::Invoke<void *>("il2cpp_object_unbox", boxed);
+  if (!unboxed) return make_unity_value(env, return_kind, 0, nullptr, owner);
+  if (return_kind == IL2CPP_BOOLEAN) {
+    bool value = *reinterpret_cast<bool *>(unboxed);
+    return make_unity_value(env, IL2CPP_BOOLEAN, value ? 1 : 0, nullptr, owner);
+  }
+  if (return_kind == IL2CPP_NUMBER) {
+    if (is_float_type(return_name)) {
+      float value = *reinterpret_cast<float *>(unboxed);
+      const double number = value;
+      return make_unity_value(env, IL2CPP_NUMBER,
+                              *reinterpret_cast<uint64_t const *>(&number), nullptr,
+                              owner);
+    }
+    double value = *reinterpret_cast<double *>(unboxed);
+    return make_unity_value(env, IL2CPP_NUMBER,
+                            *reinterpret_cast<uint64_t *>(&value), nullptr,
+                            owner);
+  }
+  int64_t value = 0;
+  std::memcpy(&value, unboxed, sizeof(value));
+  return make_unity_value(env, IL2CPP_INTEGER, static_cast<uint64_t>(value),
+                          nullptr, owner);
+}
+
+} // namespace
 
 // 线程析构函数：自动 Detach 防止内存泄露
 void detach_current_thread(void *value) {
@@ -731,6 +1198,211 @@ extern "C" JNIEXPORT void JNI_OnUnload(JavaVM *vm, void *reserved) {
     g_nativeLibObj = nullptr;
   }
   pthread_key_delete(g_thread_key);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_io_github_kulipai_luahook_hook_api_Il2CppLib_nativeInit(JNIEnv *env,
+                                                              jobject thiz) {
+  const bool initialized = initialize_unity();
+  LOGE("Il2CppLib.nativeInit: %s", initialized ? "ready" : "unavailable");
+  return initialized ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_io_github_kulipai_luahook_hook_api_Il2CppLib_nativeGetClass(
+    JNIEnv *env, jobject thiz, jstring assembly_name, jstring namespace_name,
+    jstring class_name) {
+  if (!ensure_unity_initialized() || !assembly_name || !namespace_name ||
+      !class_name)
+    return 0;
+  UnityResolve::ThreadAttach();
+  const char *assembly_chars = env->GetStringUTFChars(assembly_name, nullptr);
+  const char *namespace_chars = env->GetStringUTFChars(namespace_name, nullptr);
+  const char *class_chars = env->GetStringUTFChars(class_name, nullptr);
+  if (!assembly_chars || !namespace_chars || !class_chars) {
+    if (assembly_chars) env->ReleaseStringUTFChars(assembly_name, assembly_chars);
+    if (namespace_chars) env->ReleaseStringUTFChars(namespace_name, namespace_chars);
+    if (class_chars) env->ReleaseStringUTFChars(class_name, class_chars);
+    return 0;
+  }
+
+  UnityResolve::Class *klass =
+      lookup_unity_class(assembly_chars, namespace_chars, class_chars);
+  if (!klass) {
+    refresh_unity_metadata();
+    klass = lookup_unity_class(assembly_chars, namespace_chars, class_chars);
+  }
+  if (!klass) {
+    LOGE("IL2CPP class not found: assembly=%s namespace=%s class=%s assemblies=%zu",
+         assembly_chars, namespace_chars, class_chars,
+         UnityResolve::assembly.size());
+  } else {
+    LOGE("IL2CPP class found: assembly=%s namespace=%s class=%s handle=%p",
+         assembly_chars, namespace_chars, class_chars, klass);
+  }
+
+  env->ReleaseStringUTFChars(assembly_name, assembly_chars);
+  env->ReleaseStringUTFChars(namespace_name, namespace_chars);
+  env->ReleaseStringUTFChars(class_name, class_chars);
+  return reinterpret_cast<jlong>(klass);
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_io_github_kulipai_luahook_hook_api_Il2CppLib_nativeFindObjects(
+    JNIEnv *env, jobject thiz, jlong class_handle) {
+  if (!ensure_unity_initialized()) return nullptr;
+  UnityResolve::ThreadAttach();
+  auto *klass = class_from_handle(class_handle);
+  if (!klass) return nullptr;
+
+  std::vector<jlong> result;
+  auto *core = UnityResolve::Get("UnityEngine.CoreModule.dll");
+  if (!core) core = UnityResolve::Get("UnityEngine.CoreModule");
+  auto *object_class = core ? core->Get("Object") : nullptr;
+  auto *find_method =
+      object_class ? object_class->Get<UnityResolve::Method>("FindObjectsOfType",
+                                                              {"System.Type"})
+                   : nullptr;
+  if (!find_method) return env->NewLongArray(0);
+
+  void *type_object = klass->GetType();
+  if (!type_object) return env->NewLongArray(0);
+  void *boxed_array =
+      find_method->RuntimeInvoke<void *>((void *)nullptr, type_object);
+  if (!boxed_array) return env->NewLongArray(0);
+
+  using ObjectArray =
+      UnityResolve::UnityType::Array<UnityResolve::UnityType::Object *>;
+  auto *array = reinterpret_cast<ObjectArray *>(boxed_array);
+  const uintptr_t count = std::min<uintptr_t>(array->max_length, 100000);
+  result.reserve(count);
+  for (uintptr_t i = 0; i < count; i++) {
+    auto *object = array->At(static_cast<unsigned int>(i));
+    result.push_back(reinterpret_cast<jlong>(object));
+  }
+
+  jlongArray values = env->NewLongArray(static_cast<jsize>(result.size()));
+  if (!values || result.empty()) return values;
+  env->SetLongArrayRegion(values, 0, static_cast<jsize>(result.size()),
+                          result.data());
+  return values;
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_io_github_kulipai_luahook_hook_api_Il2CppLib_nativeNewObject(
+    JNIEnv *env, jobject thiz, jlong class_handle) {
+  if (!ensure_unity_initialized()) return 0;
+  UnityResolve::ThreadAttach();
+  auto *klass = class_from_handle(class_handle);
+  if (!klass) return 0;
+  return reinterpret_cast<jlong>(klass->New<void>());
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_io_github_kulipai_luahook_hook_api_Il2CppLib_nativeGetField(
+    JNIEnv *env, jobject thiz, jlong class_handle, jlong object_address,
+    jstring field_name) {
+  if (!ensure_unity_initialized() || !field_name) return nullptr;
+  UnityResolve::ThreadAttach();
+  auto *klass = class_from_handle(class_handle);
+  const char *name = env->GetStringUTFChars(field_name, nullptr);
+  if (!klass || !name) {
+    if (name) env->ReleaseStringUTFChars(field_name, name);
+    return nullptr;
+  }
+  auto *field = klass->Get<UnityResolve::Field>(name);
+  jobject result = read_field_value(env, klass, field,
+                                    static_cast<uintptr_t>(object_address));
+  env->ReleaseStringUTFChars(field_name, name);
+  return result;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_io_github_kulipai_luahook_hook_api_Il2CppLib_nativeSetField(
+    JNIEnv *env, jobject thiz, jlong class_handle, jlong object_address,
+    jstring field_name, jint value_kind, jlong value_bits, jstring value_text) {
+  if (!ensure_unity_initialized() || !field_name) return JNI_FALSE;
+  UnityResolve::ThreadAttach();
+  auto *klass = class_from_handle(class_handle);
+  const char *name = env->GetStringUTFChars(field_name, nullptr);
+  const char *text = value_text ? env->GetStringUTFChars(value_text, nullptr)
+                                : nullptr;
+  bool result = false;
+  if (klass && name) {
+    auto *field = klass->Get<UnityResolve::Field>(name);
+    result = write_field_value(field, static_cast<uintptr_t>(object_address),
+                               value_kind, value_bits, text);
+  }
+  if (text && value_text) env->ReleaseStringUTFChars(value_text, text);
+  if (name) env->ReleaseStringUTFChars(field_name, name);
+  return result ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_io_github_kulipai_luahook_hook_api_Il2CppLib_nativeInvokeMethod(
+    JNIEnv *env, jobject thiz, jlong class_handle, jlong object_address,
+    jstring method_name, jintArray argument_kinds, jlongArray argument_bits,
+    jobjectArray argument_texts) {
+  if (!ensure_unity_initialized() || !method_name) return nullptr;
+  UnityResolve::ThreadAttach();
+  auto *klass = class_from_handle(class_handle);
+  const char *name = env->GetStringUTFChars(method_name, nullptr);
+  if (!klass || !name) {
+    if (name) env->ReleaseStringUTFChars(method_name, name);
+    return nullptr;
+  }
+  jobject result =
+      invoke_method_value(env, klass, static_cast<uintptr_t>(object_address),
+                          name, argument_kinds, argument_bits, argument_texts);
+  env->ReleaseStringUTFChars(method_name, name);
+  return result;
+}
+
+extern "C" JNIEXPORT jobjectArray JNICALL
+Java_io_github_kulipai_luahook_hook_api_Il2CppLib_nativeAsList(
+    JNIEnv *env, jobject thiz, jlong object_address) {
+  if (!ensure_unity_initialized() || object_address == 0) return nullptr;
+  UnityResolve::ThreadAttach();
+
+  const uintptr_t list = static_cast<uintptr_t>(object_address);
+  uint64_t array_address = 0;
+  if (!read_ptr_value(list + sizeof(void *) * 2, &array_address) ||
+      array_address == 0)
+    return nullptr;
+  uint64_t length = 0;
+  if (!read_ptr_value(array_address + sizeof(void *) * 3, &length))
+    return nullptr;
+  length = std::min<uint64_t>(length, 100000);
+
+  std::vector<uintptr_t> values(static_cast<size_t>(length));
+  const uintptr_t data_address = array_address + sizeof(void *) * 4;
+  for (uint64_t i = 0; i < length; i++) {
+    uint64_t value = 0;
+    if (!read_ptr_value(data_address + i * sizeof(void *), &value)) break;
+    values[static_cast<size_t>(i)] = static_cast<uintptr_t>(value);
+  }
+
+  jclass value_class =
+      env->FindClass("io/github/kulipai/luahook/hook/api/Il2CppNativeValue");
+  if (!value_class) return nullptr;
+  jobjectArray result = env->NewObjectArray(static_cast<jsize>(values.size()),
+                                            value_class, nullptr);
+  if (!result) {
+    env->DeleteLocalRef(value_class);
+    return nullptr;
+  }
+  for (jsize i = 0; i < static_cast<jsize>(values.size()); i++) {
+    auto *item_class =
+        class_handle_for_object(reinterpret_cast<void *>(values[i]));
+    jobject item = make_unity_value(
+        env, values[i] == 0 ? IL2CPP_NIL : IL2CPP_OBJECT,
+        static_cast<uint64_t>(values[i]), nullptr,
+        reinterpret_cast<uintptr_t>(item_class));
+    env->SetObjectArrayElement(result, i, item);
+    if (item) env->DeleteLocalRef(item);
+  }
+  env->DeleteLocalRef(value_class);
+  return result;
 }
 
 extern "C" JNIEXPORT jint JNICALL
