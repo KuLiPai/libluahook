@@ -734,7 +734,7 @@ extern "C" JNIEXPORT void JNI_OnUnload(JavaVM *vm, void *reserved) {
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_kulipai_luahook_hook_api_NativeLib_registerGenericHook(
+Java_io_github_kulipai_luahook_hook_api_NativeLib_registerGenericHook(
     JNIEnv *env, jobject thiz, jlong addr, jint retType, jint argc) {
   if (!g_nativeLibObj)
     g_nativeLibObj = env->NewGlobalRef(thiz);
@@ -772,7 +772,7 @@ Java_com_kulipai_luahook_hook_api_NativeLib_registerGenericHook(
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_kulipai_luahook_hook_api_NativeLib_moduleBase(JNIEnv *env,
+Java_io_github_kulipai_luahook_hook_api_NativeLib_moduleBase(JNIEnv *env,
                                                        jobject thiz,
                                                        jstring name) {
   if (!name)
@@ -796,7 +796,7 @@ Java_com_kulipai_luahook_hook_api_NativeLib_moduleBase(JNIEnv *env,
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_kulipai_luahook_hook_api_NativeLib_resolveSymbol(JNIEnv *env,
+Java_io_github_kulipai_luahook_hook_api_NativeLib_resolveSymbol(JNIEnv *env,
                                                           jobject thiz,
                                                           jstring module,
                                                           jstring name) {
@@ -829,7 +829,7 @@ Java_com_kulipai_luahook_hook_api_NativeLib_resolveSymbol(JNIEnv *env,
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_kulipai_luahook_hook_api_NativeLib_getModuleBase(
+Java_io_github_kulipai_luahook_hook_api_NativeLib_getModuleBase(
     JNIEnv *env, jobject thiz, jstring module_name, jstring module_field) {
   if (!module_name || !module_field)
     return 0;
@@ -890,7 +890,7 @@ Java_com_kulipai_luahook_hook_api_NativeLib_getModuleBase(
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_kulipai_luahook_hook_api_NativeLib_invoke(JNIEnv *env, jobject thiz,
+Java_io_github_kulipai_luahook_hook_api_NativeLib_invoke(JNIEnv *env, jobject thiz,
                                                    jlong addr, jlongArray gprs,
                                                    jdoubleArray fprs,
                                                    jlongArray stackArray,
@@ -965,7 +965,7 @@ Java_com_kulipai_luahook_hook_api_NativeLib_invoke(JNIEnv *env, jobject thiz,
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_kulipai_luahook_hook_api_NativeLib_readPoint(JNIEnv *env, jobject thiz,
+Java_io_github_kulipai_luahook_hook_api_NativeLib_readPoint(JNIEnv *env, jobject thiz,
                                                       jlong ptr,
                                                       jlongArray offsetsArray) {
   if (ptr == 0)
@@ -1001,7 +1001,7 @@ Java_com_kulipai_luahook_hook_api_NativeLib_readPoint(JNIEnv *env, jobject thiz,
 }
 
 extern "C" JNIEXPORT jbyteArray JNICALL
-Java_com_kulipai_luahook_hook_api_NativeLib_safeRead(JNIEnv *env, jobject thiz,
+Java_io_github_kulipai_luahook_hook_api_NativeLib_safeRead(JNIEnv *env, jobject thiz,
                                                      jlong ptr, jint size) {
   if (size <= 0)
     return nullptr;
@@ -1020,7 +1020,7 @@ Java_com_kulipai_luahook_hook_api_NativeLib_safeRead(JNIEnv *env, jobject thiz,
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_kulipai_luahook_hook_api_NativeLib_safeWrite(JNIEnv *env, jobject thiz,
+Java_io_github_kulipai_luahook_hook_api_NativeLib_safeWrite(JNIEnv *env, jobject thiz,
                                                       jlong ptr,
                                                       jbyteArray data) {
   if (!data)
@@ -1070,7 +1070,7 @@ Java_com_kulipai_luahook_hook_api_NativeLib_safeWrite(JNIEnv *env, jobject thiz,
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_kulipai_luahook_hook_api_NativeLib_mallocString(JNIEnv *env,
+Java_io_github_kulipai_luahook_hook_api_NativeLib_mallocString(JNIEnv *env,
                                                          jobject thiz,
                                                          jstring str) {
   if (!str)
@@ -1082,7 +1082,7 @@ Java_com_kulipai_luahook_hook_api_NativeLib_mallocString(JNIEnv *env,
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_kulipai_luahook_hook_api_NativeLib_malloc(JNIEnv *env, jobject thiz,
+Java_io_github_kulipai_luahook_hook_api_NativeLib_malloc(JNIEnv *env, jobject thiz,
                                                    jint size) {
   if (size <= 0)
     return 0;
@@ -1091,7 +1091,7 @@ Java_com_kulipai_luahook_hook_api_NativeLib_malloc(JNIEnv *env, jobject thiz,
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_kulipai_luahook_hook_api_NativeLib_free(JNIEnv *env, jobject thiz,
+Java_io_github_kulipai_luahook_hook_api_NativeLib_free(JNIEnv *env, jobject thiz,
                                                  jlong ptr) {
   if (ptr)
     free((void *)ptr);

@@ -5,3 +5,10 @@ plugins {
     alias(libs.plugins.agp.lib) apply false
     alias(libs.plugins.kotlin.jvm) apply false
 }
+
+tasks.register("publishAllToMavenLocal") {
+    group = "publishing"
+    description = "Publishes all library modules to the local Maven repository."
+
+    dependsOn(subprojects.map { "${it.path}:publishToMavenLocal" })
+}
