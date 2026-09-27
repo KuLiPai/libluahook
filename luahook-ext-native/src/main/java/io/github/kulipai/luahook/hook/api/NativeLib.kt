@@ -53,6 +53,32 @@ class NativeLib {
         val hookCallbacks = ConcurrentHashMap<Int, HookConfig>()
     }
 
+    fun installHook(addr: Long, callbacks: LuaTable, defaultRetType: Int = RET_INT): Boolean {
+        if (!isLoaded || addr == 0L) return false
+        val ret = callbacks["ret"]
+        val retType = when {
+            ret.isnumber() -> ret.toint()
+            ret.isstring() -> when (ret.tojstring().lowercase()) {
+                "int", "ptr", "pointer", "s32", "u32", "s64", "u64", "long" -> RET_INT
+                "float" -> RET_FLOAT
+                "double" -> RET_DOUBLE
+                "void" -> RET_VOID
+                else -> defaultRetType
+            }
+            else -> defaultRetType
+        }
+        val argc = if (callbacks["argc"].isnumber()) callbacks["argc"].toint() else 0
+        val id = registerGenericHook(addr, retType, argc)
+        if (id < 0) return false
+        hookCallbacks[id] = HookConfig(
+            callbacks["onEnter"].optfunction(null),
+            callbacks["onLeave"].optfunction(null),
+            retType,
+            argc
+        )
+        return true
+    }
+
     // --- 回调入口 ---
     fun onNativeEnter(index: Int, regs: LongArray): LongArray? {
         val cfg = hookCallbacks[index] ?: return null
@@ -926,34 +952,7 @@ class NativeLib {
                 val addr = LuaPointer.unwrap(args.arg(1))
                 if (addr == 0L) return FALSE
                 val cbs = args.arg(2).checktable()
-
-                val ret = cbs["ret"]
-                val retType = when {
-                    ret.isnumber() -> ret.toint()
-                    ret.isstring() -> when (ret.tojstring().lowercase()) {
-                        "int", "ptr", "pointer" -> RET_INT
-                        "float" -> RET_FLOAT
-                        "double" -> RET_DOUBLE
-                        "void" -> RET_VOID
-                        else -> RET_INT
-                    }
-
-                    else -> RET_INT
-                }
-
-                val argc = if (cbs["argc"].isnumber()) cbs["argc"].toint() else 0
-
-                val id = registerGenericHook(addr, retType, argc)
-                if (id >= 0) {
-                    hookCallbacks[id] = HookConfig(
-                        cbs["onEnter"].optfunction(null),
-                        cbs["onLeave"].optfunction(null),
-                        retType,
-                        argc
-                    )
-                    return TRUE
-                }
-                return FALSE
+                return valueOf(installHook(addr, cbs))
             }
         }
         return t

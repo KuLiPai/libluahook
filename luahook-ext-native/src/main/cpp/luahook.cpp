@@ -1247,6 +1247,45 @@ Java_io_github_kulipai_luahook_hook_api_Il2CppLib_nativeGetClass(
   return reinterpret_cast<jlong>(klass);
 }
 
+extern "C" JNIEXPORT jlong JNICALL
+Java_io_github_kulipai_luahook_hook_api_Il2CppLib_nativeGetMethodAddress(
+    JNIEnv *env, jobject thiz, jlong class_handle, jstring method_name) {
+  if (!ensure_unity_initialized() || !method_name) return 0;
+  UnityResolve::ThreadAttach();
+  auto *klass = class_from_handle(class_handle);
+  const char *name = env->GetStringUTFChars(method_name, nullptr);
+  if (!klass || !name) {
+    if (name) env->ReleaseStringUTFChars(method_name, name);
+    return 0;
+  }
+  auto *method = klass->Get<UnityResolve::Method>(name);
+  if (method) method->Compile();
+  const jlong address = method ? reinterpret_cast<jlong>(method->function) : 0;
+  LOGE("IL2CPP method lookup: class=%p method=%s address=%p", klass, name,
+       reinterpret_cast<void *>(address));
+  env->ReleaseStringUTFChars(method_name, name);
+  return address;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_io_github_kulipai_luahook_hook_api_Il2CppLib_nativeGetMethodReturnType(
+    JNIEnv *env, jobject thiz, jlong class_handle, jstring method_name) {
+  if (!ensure_unity_initialized() || !method_name) return RET_INT;
+  auto *klass = class_from_handle(class_handle);
+  const char *name = env->GetStringUTFChars(method_name, nullptr);
+  if (!klass || !name) {
+    if (name) env->ReleaseStringUTFChars(method_name, name);
+    return RET_INT;
+  }
+  auto *method = klass->Get<UnityResolve::Method>(name);
+  const std::string return_name = type_name(method);
+  env->ReleaseStringUTFChars(method_name, name);
+  if (return_name == "System.Void" || return_name == "void") return RET_VOID;
+  if (is_float_type(return_name)) return RET_FLOAT;
+  if (is_double_type(return_name)) return RET_DOUBLE;
+  return RET_INT;
+}
+
 extern "C" JNIEXPORT jlongArray JNICALL
 Java_io_github_kulipai_luahook_hook_api_Il2CppLib_nativeFindObjects(
     JNIEnv *env, jobject thiz, jlong class_handle) {
