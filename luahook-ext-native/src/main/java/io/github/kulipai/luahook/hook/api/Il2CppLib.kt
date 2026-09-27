@@ -53,6 +53,9 @@ class Il2CppLib(private val nativeLib: NativeLib) {
         className: String
     ): Long
 
+    private external fun nativeGetMethodAddress(classHandle: Long, methodName: String): Long
+    private external fun nativeGetMethodReturnType(classHandle: Long, methodName: String): Int
+
     private external fun nativeFindObjects(classHandle: Long): LongArray?
     private external fun nativeNewObject(classHandle: Long): Long
     private external fun nativeGetField(
@@ -141,10 +144,33 @@ class Il2CppLib(private val nativeLib: NativeLib) {
             }
         }
 
+        table["hook"] = object : VarArgFunction() {
+            override fun invoke(args: Varargs): LuaValue {
+                if (!initialized) return LuaValue.error("call il2cpp.init() before il2cpp.hook()")
+                val target = args.arg(1)
+                val methodName: String
+                val classHandle: Long
+                val options: LuaTable
+                if (target is Il2CppClassValue) {
+                    classHandle = target.classHandle
+                    methodName = args.checkjstring(2)
+                    options = args.arg(3).checktable()
+                } else {
+                    val address = addressOf(target)
+                    options = args.arg(2).checktable()
+                    return valueOf(nativeLib.installHook(address, options))
+                }
+                val address = nativeGetMethodAddress(classHandle, methodName)
+                if (address == 0L) return FALSE
+                val returnType = nativeGetMethodReturnType(classHandle, methodName)
+                return valueOf(nativeLib.installHook(address, options, returnType))
+            }
+        }
+
         return table
     }
 
-    private inner class Il2CppClassValue(private val classHandle: Long) : LuaUserdata(classHandle) {
+    private inner class Il2CppClassValue(internal val classHandle: Long) : LuaUserdata(classHandle) {
         override fun get(key: LuaValue): LuaValue {
             val name = key.tojstring()
             return when (name) {
