@@ -135,6 +135,33 @@ into two steps instead — `load()` only builds the environment, `run()` execute
 }
 ```
 
+### Material component theme context
+
+Material components cannot be constructed with an unthemed `Application` context. `registerLayout()` now exposes three Lua helpers. Once an Activity is available, update the layout context once and reuse the themed factory in constructors or `loadlayout`:
+
+```lua
+-- Run this from Activity.onCreate. Resolving by name uses the Activity's
+-- Resources and avoids passing an R constant from another APK.
+setLayoutContext(activity, "Theme.MaterialComponents.Light")
+
+local ThemedCard = themed(MaterialCardView)
+local card = ThemedCard()
+card.setRadius(24)
+
+local ThemedSwitch = themed(MaterialSwitch)
+local switch = ThemedSwitch()
+switch.setText("Test")
+
+-- The same factory can be passed directly to loadlayout.
+local panel = loadlayout {
+    ThemedCard,
+    layout_width = "match",
+    layout_height = "match",
+}
+```
+
+Use `layoutContext()` when a component only needs a themed Context, for example `MaterialSwitch(layoutContext())`. `themed(ViewClass, themeId)` can override the default theme for one component; the theme argument can also be a resource-name string. If the target process does not contain Material's theme resources, the name lookup returns 0 and those resources must be made available first.
+
 ### Option B: Legacy Xposed (`IXposedHookLoadPackage`)
 ```kotlin
 package com.example.myxposed
