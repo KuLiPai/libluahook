@@ -134,6 +134,33 @@ class MyNewHook : XposedModule() {
     }
 ```
 
+### Material 组件主题上下文
+
+Material 组件不能使用没有 MaterialComponents 主题的 `Application` 上下文直接构造。`registerLayout()` 现在会额外注册三个 Lua 辅助函数。进入 Activity 后先更新一次上下文，之后可以直接把 `themed(...)` 返回值用于构造器或 `loadlayout`：
+
+```lua
+-- 在 UnityPlayerActivity.onCreate 中执行。
+-- 使用资源名会从 Activity 的 Resources 解析，避免跨 APK 的 R 常量失效。
+setLayoutContext(activity, "Theme.MaterialComponents.Light")
+
+local ThemedCard = themed(MaterialCardView)
+local card = ThemedCard()
+card.setRadius(24)
+
+local ThemedSwitch = themed(MaterialSwitch)
+local switch = ThemedSwitch()
+switch.setText("测试")
+
+-- themed 返回值也可以直接放进 loadlayout
+local panel = loadlayout {
+    ThemedCard,
+    layout_width = "match",
+    layout_height = "match",
+}
+```
+
+如果只需要直接传入 Context，也可以使用 `layoutContext()`；它返回已经套用默认主题的 `ContextThemeWrapper`。例如：`MaterialSwitch(layoutContext())`。`themed(ViewClass, themeId)` 也支持为单个控件覆盖默认主题；主题参数也可以写成资源名字符串。若目标应用没有合并 Material 主题资源，`getIdentifier` 会返回 0，此时需要先让目标进程加载对应的 Material 资源。
+
 ### 选项 B: 传统 Xposed 入口 (`IXposedHookLoadPackage`)
 ```kotlin
 package com.example.myxposed
