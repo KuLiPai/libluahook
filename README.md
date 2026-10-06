@@ -110,30 +110,56 @@ If you need to inject custom globals (or extension APIs) *before* the script run
 into two steps instead — `load()` only builds the environment, `run()` executes the script:
 
 ```kotlin
-    override fun onPackageReady(lpparam: XposedModuleInterface.PackageReadyParam) {
-        super.onPackageReady(lpparam)
+override fun onPackageReady(lpparam: XposedModuleInterface.PackageReadyParam) {
+    super.onPackageReady(lpparam)
 
-        LuaHookEngine.init(
-            xposedModule = this,
-            param = lpparam
-        )
+    LuaHookEngine.init(
+        xposedModule = this,
+        param = lpparam
+    )
 
-        // 1. Build the environment. No script has run yet.
-        val globals = LuaHookEngine.load(this, "[MY_SCRIPT]")
+    // 1. Build the environment. No script has run yet.
+    val globals = LuaHookEngine.load(this, "[MY_SCRIPT]")
 
-        // 2. Expose extension APIs to the Lua runtime
-        globals.registerLayout()  // 👈 Exposes loadlayout() and adapters to your Lua runtime
-        globals.registerDexKit()
-        globals.registerNative()
+    // 2. Expose extension APIs to the Lua runtime
+    globals.registerLayout()  // 👈 Exposes loadlayout() and adapters to your Lua runtime
+    globals.registerDexKit()
+    globals.registerNative()
 
-        // 3. Inject your own globals too
-        globals["MY_CONFIG"] = "value"
+    // 3. Inject your own globals too
+    globals["MY_CONFIG"] = "value"
 
-        // 4. Now run the script, with everything above available to it
-        LuaHookEngine.run(globals, scriptText)
-    }
+    // 4. Now run the script, with everything above available to it
+    LuaHookEngine.run(globals, scriptText)
 }
 ```
+
+### Material component theme context
+
+Material components cannot be constructed with an unthemed `Application` context. `registerLayout()` now exposes three Lua helpers. Once an Activity is available, update the layout context once and reuse the themed factory in constructors or `loadlayout`:
+
+```lua
+-- Run this from Activity.onCreate. Resolving by name uses the Activity's
+-- Resources and avoids passing an R constant from another APK.
+setLayoutContext(activity, "Theme.MaterialComponents.Light")
+
+local ThemedCard = themed(MaterialCardView)
+local card = ThemedCard()
+card.setRadius(24)
+
+local ThemedSwitch = themed(MaterialSwitch)
+local switch = ThemedSwitch()
+switch.setText("Test")
+
+-- The same factory can be passed directly to loadlayout.
+local panel = loadlayout {
+    ThemedCard,
+    layout_width = "match",
+    layout_height = "match",
+}
+```
+
+Use `layoutContext()` when a component only needs a themed Context, for example `MaterialSwitch(layoutContext())`. `themed(ViewClass, themeId)` can override the default theme for one component; the theme argument can also be a resource-name string. If the target process does not contain Material's theme resources, the name lookup returns 0 and those resources must be made available first.
 
 ### Option B: Legacy Xposed (`IXposedHookLoadPackage`)
 ```kotlin
