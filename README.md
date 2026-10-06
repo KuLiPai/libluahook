@@ -110,28 +110,27 @@ If you need to inject custom globals (or extension APIs) *before* the script run
 into two steps instead — `load()` only builds the environment, `run()` executes the script:
 
 ```kotlin
-    override fun onPackageReady(lpparam: XposedModuleInterface.PackageReadyParam) {
-        super.onPackageReady(lpparam)
+override fun onPackageReady(lpparam: XposedModuleInterface.PackageReadyParam) {
+    super.onPackageReady(lpparam)
 
-        LuaHookEngine.init(
-            xposedModule = this,
-            param = lpparam
-        )
+    LuaHookEngine.init(
+        xposedModule = this,
+        param = lpparam
+    )
 
-        // 1. Build the environment. No script has run yet.
-        val globals = LuaHookEngine.load(this, "[MY_SCRIPT]")
+    // 1. Build the environment. No script has run yet.
+    val globals = LuaHookEngine.load(this, "[MY_SCRIPT]")
 
-        // 2. Expose extension APIs to the Lua runtime
-        globals.registerLayout()  // 👈 Exposes loadlayout() and adapters to your Lua runtime
-        globals.registerDexKit()
-        globals.registerNative()
+    // 2. Expose extension APIs to the Lua runtime
+    globals.registerLayout()  // 👈 Exposes loadlayout() and adapters to your Lua runtime
+    globals.registerDexKit()
+    globals.registerNative()
 
-        // 3. Inject your own globals too
-        globals["MY_CONFIG"] = "value"
+    // 3. Inject your own globals too
+    globals["MY_CONFIG"] = "value"
 
-        // 4. Now run the script, with everything above available to it
-        LuaHookEngine.run(globals, scriptText)
-    }
+    // 4. Now run the script, with everything above available to it
+    LuaHookEngine.run(globals, scriptText)
 }
 ```
 
