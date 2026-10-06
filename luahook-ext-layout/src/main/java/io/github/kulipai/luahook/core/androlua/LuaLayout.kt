@@ -7,7 +7,6 @@ import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.text.TextUtils
 import android.util.DisplayMetrics
-import android.util.Log
 import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
@@ -29,6 +28,7 @@ import com.nekolaska.ktx.secondArg
 import com.nekolaska.ktx.toLuaInstance
 import com.nekolaska.ktx.toLuaValue
 import com.nekolaska.ktx.toVarargs
+import io.github.kulipai.luahook.core.log.log
 import org.luaj.Globals
 import org.luaj.LuaError
 import org.luaj.LuaTable
@@ -67,9 +67,12 @@ class LuaLayout @JvmOverloads constructor(
 
     private fun reportError(message: String, error: Throwable) {
         val exception = error as? Exception ?: RuntimeException(error)
-        luaContext?.sendError(message, exception)
-            ?: Log.e("LuaLayout", message, exception)
-    }
+        if (luaContext != null) {
+            luaContext.sendError(message, exception)
+        } else {
+            error.log("LuaLayout: $message")
+        }
+    }   
 
     val id: HashMap<*, *>
         get() = ids
@@ -494,7 +497,6 @@ class LuaLayout @JvmOverloads constructor(
                         "loadlayout " + view + ": " + next.firstArg() + "=" + next.secondArg(),
                         e
                     )
-                    e.printStackTrace()
                 }
             }
 
@@ -513,7 +515,9 @@ class LuaLayout @JvmOverloads constructor(
                     mss[i] = toValue(pt.asString()).toLuaValue()
                 }
                 if (sp) params["setMargins"]?.ifNotNil()?.invoke(mss.toVarargs())
-            }.onFailure { it.printStackTrace() }
+            }.onFailure {
+                reportError("loadlayout margin: " + layout.checktable().dump(), it)
+            }
 
             view["LayoutParams"] = params
             runCatching {
@@ -532,12 +536,11 @@ class LuaLayout @JvmOverloads constructor(
                 }
                 if (sp) view["setPadding"].invoke(pds.toVarargs())
             }.onFailure {
-                reportError("loadlayout " + layout.checktable().dump(), it)
-                it.printStackTrace()
+                reportError("loadlayout padding: " + layout.checktable().dump(), it)
             }
         } catch (e: Exception) {
             reportError("loadlayout " + layout.checktable().dump(), e)
-            e.printStackTrace()
+            throw if (e is LuaError) e else LuaError(e)
         }
         return view
     }

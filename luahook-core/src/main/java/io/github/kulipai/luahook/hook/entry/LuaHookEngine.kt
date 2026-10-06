@@ -4,6 +4,7 @@ import android.content.pm.ApplicationInfo
 import de.robv.android.xposed.IXposedHookZygoteInit
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 import io.github.libxposed.api.XposedModuleInterface
+import io.github.kulipai.luahook.core.log.e
 import io.github.kulipai.luahook.hook.api.LuaUtil
 import org.luaj.Globals
 import org.luaj.LuaValue
@@ -121,6 +122,8 @@ object LuaHookEngine {
             chunk.call()
         } catch (e: Exception) {
             val err = LuaUtil.simplifyLuaError(e.toString())
+            val pkg = lpParam?.packageName ?: "Unknown"
+            "[Error] | Package: $pkg | Script: $scriptName | Message: $err".e()
             throw RuntimeException("LuaHook error in script $scriptName: $err", e)
         }
 
